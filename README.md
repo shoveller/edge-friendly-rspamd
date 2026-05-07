@@ -6,6 +6,8 @@ Edge Friendly Rspamd is a small Hono + Cloudflare Workers project for protecting
 
 This repository currently implements only `POST /check`: a cheap metadata-only decision endpoint. Raw inspection, quarantine storage, and async triage are intentionally left on the roadmap.
 
+The runtime now uses the Vite-based Hono + Cloudflare Workers path. The root route renders a small operator-facing landing page, while `POST /check` remains the stable JSON decision API.
+
 Links:
 
 - Korean README: [README.ko.md](./README.ko.md)
@@ -17,6 +19,12 @@ Quick start:
 ```bash
 npm install
 npm run dev
+```
+
+Build the Vite bundle locally:
+
+```bash
+npm run build
 ```
 
 Run the quality gate:

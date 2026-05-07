@@ -1,5 +1,5 @@
 import { Hono } from 'hono'
-import { BadCheckRequest, evaluateCheck } from '@/policy'
+import { BadCheckRequest, evaluateCheck } from './policy'
 
 export const app = new Hono()
 
@@ -8,6 +8,7 @@ app.get('/', (c) =>
     name: 'edge-friendly-rspamd',
     description:
       'Cloudflare-edge deterministic mail firewall inspired by Rspamd scoring principles.',
+    ui: '/',
     endpoints: {
       check: 'POST /check',
     },

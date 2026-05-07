@@ -8,6 +8,8 @@ Edge Friendly Rspamd는 Rspamd 자체를 Cloudflare Worker에 이식하는 프�
 
 현재 구현된 것은 `POST /check` 하나입니다. `/check-raw`, `/quarantine`, `/triage`는 로드맵으로 남겨두었습니다.
 
+현재 런타임은 Vite 기반 Hono + Cloudflare Workers 경로로 전환되었습니다. 루트 경로는 작은 운영자용 랜딩 페이지를 렌더링하고, `POST /check`는 기존처럼 안정적인 JSON 결정 API로 유지됩니다.
+
 관련 링크:
 
 - Cloudflare spam filtering 예시: https://developers.cloudflare.com/email-service/examples/email-routing/spam-filtering/
@@ -18,6 +20,12 @@ Edge Friendly Rspamd는 Rspamd 자체를 Cloudflare Worker에 이식하는 프�
 ```bash
 npm install
 npm run dev
+```
+
+Vite 번들을 로컬에서 빌드하려면:
+
+```bash
+npm run build
 ```
 
 검증:

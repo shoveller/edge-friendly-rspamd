@@ -8,7 +8,7 @@ export default tseslint.config(
     ignores: ['dist/**', 'coverage/**', 'node_modules/**', 'worker-configuration.d.ts'],
   },
   {
-    files: ['src/**/*.ts', 'test/**/*.ts'],
+    files: ['src/**/*.ts', 'src/**/*.tsx', 'test/**/*.ts'],
     languageOptions: {
       ecmaVersion: 2022,
       sourceType: 'module',
