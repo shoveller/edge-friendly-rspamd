@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">Edge Friendly Rspamd visual identity</title>
+  <desc id="desc">Abstract shield, envelope, edge route, and signal marks representing deterministic mail policy scoring at the Cloudflare edge.</desc>
+  <defs>
+    <linearGradient id="bg" x1="56" y1="40" x2="456" y2="472" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0F172A" />
+      <stop offset="1" stop-color="#111827" />
+    </linearGradient>
+    <linearGradient id="edge" x1="112" y1="96" x2="400" y2="416" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#F97316" />
+      <stop offset="0.52" stop-color="#FACC15" />
+      <stop offset="1" stop-color="#06B6D4" />
+    </linearGradient>
+    <filter id="soft" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="16" stdDeviation="18" flood-color="#020617" flood-opacity="0.35" />
+    </filter>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#bg)" />
+  <path d="M256 68c58 40 108 54 154 60v120c0 86-54 154-154 196-100-42-154-110-154-196V128c46-6 96-20 154-60Z" fill="url(#edge)" filter="url(#soft)" />
+  <path d="M144 182h224c18 0 32 14 32 32v116c0 18-14 32-32 32H144c-18 0-32-14-32-32V214c0-18 14-32 32-32Z" fill="#FFF7ED" opacity="0.96" />
+  <path d="M126 210l130 92 130-92" fill="none" stroke="#0F172A" stroke-width="18" stroke-linecap="round" stroke-linejoin="round" opacity="0.82" />
+  <path d="M156 330h200" stroke="#0F172A" stroke-width="16" stroke-linecap="round" opacity="0.18" />
+  <circle cx="148" cy="132" r="18" fill="#38BDF8" />
+  <circle cx="364" cy="132" r="18" fill="#FDBA74" />
+  <circle cx="404" cy="318" r="18" fill="#22C55E" />
+  <path d="M148 132c62-48 154-48 216 0M364 132c38 42 50 112 40 186" fill="none" stroke="#E0F2FE" stroke-width="12" stroke-linecap="round" stroke-dasharray="2 24" opacity="0.84" />
+  <path d="M190 104l20 42 46 7-33 32 8 46-41-22-41 22 8-46-33-32 46-7 20-42Z" fill="#F8FAFC" opacity="0.92" />
+</svg>

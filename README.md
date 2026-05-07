@@ -1,20 +1,20 @@
+<p align="center">
+  <img src="./assets/readme/hero.svg" alt="Edge Friendly Rspamd visual identity" width="220" />
+</p>
+
 # Edge Friendly Rspamd
 
-> A Cloudflare-edge deterministic mail firewall inspired by Rspamd's multi-signal scoring philosophy.
+**A deterministic mail-policy firewall for Cloudflare Email Routing, Hono Workers, and agent-facing inboxes.**
 
-Edge Friendly Rspamd is a small Hono + Cloudflare Workers project for protecting Cloudflare Email Routing, saasmail, and agent-facing mailboxes before untrusted email becomes an inbox message or an agent event.
+Languages: [English](./README.md) · [한국어](./README.ko.md)
 
-This repository currently implements only `POST /check`: a cheap metadata-only decision endpoint. Raw inspection, quarantine storage, and async triage are intentionally left on the roadmap.
+Edge Friendly Rspamd protects Cloudflare Email Routing, saasmail, and automation-facing mailboxes before untrusted email becomes an inbox message or an agent event. It applies Rspamd-inspired multi-signal scoring at the edge, but keeps the first decision path cheap, deterministic, and metadata-only.
 
-The runtime now uses the Vite-based Hono + Cloudflare Workers path. The root route renders a small operator-facing landing page, while `POST /check` remains the stable JSON decision API.
+[Quick start](#quick-start) · [API](#api) · [Service Binding usage](#usage-with-cloudflare-service-bindings) · [Roadmap](./ROADMAP.md) · [Cloudflare example](https://developers.cloudflare.com/email-service/examples/email-routing/spam-filtering/) · [Hono](https://hono.dev/) · [License](#license)
 
-Links:
+The current implementation focuses on `POST /check`: a stable JSON decision API for scoring envelope/header-level metadata. Raw inspection, quarantine storage, and async triage are intentionally left on the roadmap. The root route renders a small operator-facing landing page through the Vite-based Hono + Cloudflare Workers runtime.
 
-- Korean README: [README.ko.md](./README.ko.md)
-- Cloudflare spam filtering example: https://developers.cloudflare.com/email-service/examples/email-routing/spam-filtering/
-- Hono: https://hono.dev/
-
-Quick start:
+## Quick start
 
 ```bash
 npm install
@@ -27,7 +27,7 @@ Build the Vite bundle locally:
 npm run build
 ```
 
-Run the quality gate:
+Run the full quality gate:
 
 ```bash
 npm run check
@@ -530,4 +530,4 @@ npm run deploy
 
 ## License
 
-MIT
+MIT. See [LICENSE](./LICENSE).

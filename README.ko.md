@@ -1,21 +1,20 @@
+<p align="center">
+  <img src="./assets/readme/hero.svg" alt="Edge Friendly Rspamd 시각 아이덴티티" width="220" />
+</p>
+
 # Edge Friendly Rspamd
 
-> Rspamd의 다중 신호 점수화 철학에서 출발한 Cloudflare Edge 친화적 결정론적 메일 방화벽입니다.
+**Cloudflare Email Routing, Hono Workers, agent-facing inbox를 위한 결정론적 메일 정책 방화벽입니다.**
 
-[English README](./README.md)
+언어: [한국어](./README.ko.md) · [English](./README.md)
 
-Edge Friendly Rspamd는 Rspamd 자체를 Cloudflare Worker에 이식하는 프로젝트가 아닙니다. Rspamd가 오래 검증한 “여러 싼 신호를 점수화해 최종 정책을 결정한다”는 방식을 Cloudflare Email Routing, Hono, TypeScript에 맞게 작게 재구성하는 오픈소스 메일 방화벽 실험입니다.
+Edge Friendly Rspamd는 신뢰할 수 없는 이메일이 inbox message나 agent event가 되기 전에 Cloudflare Email Routing, saasmail, 자동화용 메일함을 보호합니다. Rspamd의 다중 신호 점수화 철학을 Edge에서 재구성하되, 첫 결정 경로는 싸고 결정적이며 metadata-only로 유지합니다.
 
-현재 구현된 것은 `POST /check` 하나입니다. `/check-raw`, `/quarantine`, `/triage`는 로드맵으로 남겨두었습니다.
+[빠른 시작](#빠른-시작) · [API](#api) · [Service Binding 사용법](#cloudflare-service-binding으로-사용하는-법) · [로드맵](./ROADMAP.md) · [Cloudflare 예시](https://developers.cloudflare.com/email-service/examples/email-routing/spam-filtering/) · [Hono](https://hono.dev/) · [라이선스](#라이선스)
 
-현재 런타임은 Vite 기반 Hono + Cloudflare Workers 경로로 전환되었습니다. 루트 경로는 작은 운영자용 랜딩 페이지를 렌더링하고, `POST /check`는 기존처럼 안정적인 JSON 결정 API로 유지됩니다.
+현재 구현은 `POST /check`에 집중합니다. 이 endpoint는 envelope/header 수준 metadata를 점수화하는 안정적인 JSON 결정 API입니다. Raw 검사, quarantine 저장소, 비동기 triage는 의도적으로 로드맵에 남겨두었습니다. 루트 경로는 Vite 기반 Hono + Cloudflare Workers 런타임으로 작은 운영자용 랜딩 페이지를 렌더링합니다.
 
-관련 링크:
-
-- Cloudflare spam filtering 예시: https://developers.cloudflare.com/email-service/examples/email-routing/spam-filtering/
-- Hono: https://hono.dev/
-
-빠른 시작:
+## 빠른 시작
 
 ```bash
 npm install
@@ -28,7 +27,7 @@ Vite 번들을 로컬에서 빌드하려면:
 npm run build
 ```
 
-검증:
+전체 검증:
 
 ```bash
 npm run check
@@ -531,4 +530,4 @@ npm run deploy
 
 ## 라이선스
 
-MIT
+MIT입니다. [LICENSE](./LICENSE)를 참고하세요.
