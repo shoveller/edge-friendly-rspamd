@@ -5,6 +5,14 @@
   "type": "module",
   "license": "MIT",
   "private": false,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/shoveller/edge-friendly-rspamd.git"
+  },
+  "bugs": {
+    "url": "https://github.com/shoveller/edge-friendly-rspamd/issues"
+  },
+  "homepage": "https://github.com/shoveller/edge-friendly-rspamd#readme",
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy --minify",
