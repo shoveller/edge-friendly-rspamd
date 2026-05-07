@@ -1,5 +1,5 @@
 import { Hono } from 'hono'
-import { BadCheckRequest, evaluateCheck } from './policy'
+import { BadCheckRequest, evaluateCheck } from '@/policy'
 
 export const app = new Hono()
 

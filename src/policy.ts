@@ -1,4 +1,4 @@
-import type { AuthSummary, CheckRequest, MailDecision, MailVerdict, RuleResult } from './types'
+import type { AuthSummary, CheckRequest, MailDecision, MailVerdict, RuleResult } from '@/types'
 
 const DEFAULT_RAW_SIZE_LIMIT = 256 * 1024
 const DEFAULT_QUARANTINE_SCORE = 4

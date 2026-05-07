@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { app } from '../src/index'
-import { evaluateCheck } from '../src/policy'
+import { app } from '@/index'
+import { evaluateCheck } from '@/policy'
 
 const baseRequest = {
   recipient: 'contact@example.com',
