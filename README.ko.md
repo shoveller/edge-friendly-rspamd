@@ -180,6 +180,225 @@ Metadata-only decision endpoint입니다.
 
 ---
 
+## Cloudflare Service Binding으로 사용하는 법
+
+`edge-friendly-rspamd`는 직접 메일을 받는 Worker라기보다 내부 policy Worker로 쓰는 것을 의도합니다. Cloudflare Email Worker 또는 saasmail wrapper가 메일을 받은 뒤, Cloudflare Workers Service Binding으로 `POST /check`를 호출하고 응답 action에 따라 분기합니다.
+
+```text
+Cloudflare Email Routing
+→ mail receiver Worker email(message, env, ctx)
+→ env.EDGE_RSPAMD.fetch(POST /check)
+→ decision.action 기준 분기
+   ├─ accept      → upstream email handler 또는 message.forward(...)
+   ├─ reject      → message.setReject(...)
+   ├─ drop        → forward/reply 없이 return
+   ├─ quarantine  → /quarantine 구현 후 저장/큐잉, 현재는 보수 fallback
+   └─ inspect_raw → 향후 /check-raw 호출, 현재는 보수 fallback
+```
+
+Cloudflare 공식 문서:
+
+- Service Bindings: https://developers.cloudflare.com/workers/runtime-apis/bindings/service-bindings/
+- HTTP Service Bindings: https://developers.cloudflare.com/workers/runtime-apis/bindings/service-bindings/http/
+- Email Workers Runtime API: https://developers.cloudflare.com/email-routing/email-workers/runtime-api/
+- Spam filtering example: https://developers.cloudflare.com/email-service/examples/email-routing/spam-filtering/
+
+### 1. policy Worker 배포
+
+```bash
+npm install
+npm run check
+npm run deploy
+```
+
+이 저장소의 `wrangler.jsonc` 기준 대상 Worker service name은 다음입니다.
+
+```jsonc
+{
+  "name": "edge-friendly-rspamd",
+  "main": "src/index.ts",
+}
+```
+
+### 2. 호출자 Worker에 Service Binding 추가
+
+Service Binding은 이 policy Worker가 아니라 **호출하는 쪽 Worker**의 설정에 추가합니다.
+
+```jsonc
+{
+  "name": "mail-ingress-worker",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-05-07",
+  "services": [
+    {
+      "binding": "EDGE_RSPAMD",
+      "service": "edge-friendly-rspamd",
+    },
+  ],
+}
+```
+
+이후 호출자 Worker 코드에서는 `env.EDGE_RSPAMD.fetch(...)`를 사용할 수 있습니다. Cloudflare HTTP Service Binding 문서 기준으로 `new Request(...)`를 직접 만들 때는 유효한 full URL이 필요합니다. 실제 공개 URL로 나가는 것이 아니라, Request 객체를 만들기 위한 URL이고 Service Binding이 bound Worker로 라우팅합니다.
+
+### 3. Email Worker wrapper 예시
+
+```ts
+type Env = {
+  EDGE_RSPAMD: { fetch(request: Request): Promise<Response> }
+  FORWARD_TO: string
+}
+
+export default {
+  async email(message: ForwardableEmailMessage, env: Env, ctx: ExecutionContext) {
+    const payload = {
+      recipient: message.to,
+      sender: message.from,
+      senderDomain: domainFromAddress(message.from),
+      rawSize: message.rawSize,
+      subject: message.headers.get('subject') ?? '',
+      messageId: message.headers.get('message-id') ?? '',
+      authResults: message.headers.get('authentication-results') ?? '',
+      headers: selectedHeaders(message.headers),
+      hasAttachments: mayHaveAttachments(message.headers),
+      policy: policyForRecipient(message.to),
+    }
+
+    const response = await env.EDGE_RSPAMD.fetch(
+      new Request('https://edge-friendly-rspamd/check', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(payload),
+      }),
+    )
+
+    if (!response.ok) {
+      message.setReject('mail policy check failed')
+      return
+    }
+
+    const decision = await response.json<{
+      action: string
+      decisionId: string
+      score: number
+      verdict: string
+    }>()
+
+    const auditHeaders = new Headers()
+    auditHeaders.set('X-Edge-Rspamd-Decision', decision.action)
+    auditHeaders.set('X-Edge-Rspamd-Decision-Id', decision.decisionId)
+    auditHeaders.set('X-Edge-Rspamd-Score', String(decision.score))
+    auditHeaders.set('X-Edge-Rspamd-Verdict', decision.verdict)
+
+    switch (decision.action) {
+      case 'accept':
+        await message.forward(env.FORWARD_TO, auditHeaders)
+        return
+      case 'reject':
+        message.setReject(`Rejected by edge-friendly-rspamd: ${decision.verdict}`)
+        return
+      case 'drop':
+        return
+      case 'quarantine':
+      case 'inspect_raw':
+        message.setReject(`Quarantined by policy: ${decision.verdict}`)
+        return
+      default:
+        message.setReject(`Unknown mail policy action: ${decision.action}`)
+        return
+    }
+  },
+}
+
+function domainFromAddress(address: string): string {
+  return address.split('@')[1]?.toLowerCase() ?? ''
+}
+
+function selectedHeaders(headers: Headers): Record<string, string> {
+  const keys = ['from', 'to', 'subject', 'message-id', 'authentication-results', 'content-type']
+  const result: Record<string, string> = {}
+  for (const key of keys) {
+    const value = headers.get(key)
+    if (value) result[key.toLowerCase()] = value
+  }
+  return result
+}
+
+function mayHaveAttachments(headers: Headers): boolean {
+  const contentType = headers.get('content-type') ?? ''
+  const disposition = headers.get('content-disposition') ?? ''
+  return /multipart\/mixed/i.test(contentType) || /attachment/i.test(disposition)
+}
+
+function policyForRecipient(recipient: string) {
+  const normalized = recipient.toLowerCase()
+
+  if (normalized === 'agent@example.com') {
+    return {
+      name: 'agent-command-default',
+      mode: 'command-ingress',
+      allowedRecipients: ['agent@example.com'],
+      trustedDomains: ['github.com', 'notifications.github.com'],
+      rawSizeLimit: 256 * 1024,
+      quarantineScore: -1,
+      rejectScore: 3,
+      requireBodySecret: true,
+    }
+  }
+
+  return {
+    name: 'human-inbox-default',
+    mode: 'human-inbox',
+    allowedRecipients: [normalized],
+    rawSizeLimit: 1024 * 1024,
+    quarantineScore: 4,
+    rejectScore: 7,
+  }
+}
+```
+
+### action별 처리 지침
+
+| Action        | 호출자 Worker 처리 방식                                              |
+| ------------- | -------------------------------------------------------------------- |
+| `accept`      | upstream inbox로 forward하거나 saasmail `email()` handler 호출       |
+| `reject`      | `message.setReject(reason)`으로 영구 SMTP 오류 반환                  |
+| `drop`        | forward/reply 없이 return. backscatter 회피                          |
+| `quarantine`  | 로드맵: raw mail을 R2에 저장, D1 metadata 기록, Queue triage enqueue |
+| `inspect_raw` | 로드맵: `/check-raw` 호출. 구현 전까지는 보수적으로 처리             |
+| `relay`       | 예약 action. 명시 정책이 없으면 reject/drop                          |
+| `reply`       | 예약 action. agent-facing alias에서는 기본 비활성화                  |
+
+agent-facing alias에서는 fail-closed가 안전합니다. policy Worker 장애, 잘못된 응답, 아직 구현되지 않은 `inspect_raw`/`quarantine` 요청은 자동화로 forwarding하지 말고 `reject` 또는 `drop`으로 처리하는 것을 권장합니다.
+
+### saasmail wrapper 형태
+
+호출자에 이미 upstream `email()` handler가 있다면, 그 앞에 policy check를 끼웁니다.
+
+```ts
+export default {
+  async fetch(request, env, ctx) {
+    return upstream.fetch(request, env, ctx)
+  },
+
+  async email(message, env, ctx) {
+    const decision = await checkWithEdgeRspamd(message, env)
+
+    if (decision.action === 'accept') {
+      return upstream.email(message, env, ctx)
+    }
+
+    if (decision.action === 'reject') {
+      message.setReject('Rejected by mail policy')
+      return
+    }
+
+    return
+  },
+}
+```
+
+---
+
 ## 현재 범위
 
 구현됨:

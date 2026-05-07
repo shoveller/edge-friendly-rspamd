@@ -179,6 +179,225 @@ Example response:
 
 ---
 
+## Usage with Cloudflare Service Bindings
+
+`edge-friendly-rspamd` is intended to run as an internal policy Worker. The Worker that receives email, such as a Cloudflare Email Worker or a thin saasmail wrapper, calls `POST /check` through a Cloudflare Workers Service Binding and branches on the returned action.
+
+```text
+Cloudflare Email Routing
+→ mail receiver Worker email(message, env, ctx)
+→ env.EDGE_RSPAMD.fetch(POST /check)
+→ branch on decision.action
+   ├─ accept      → upstream email handler or message.forward(...)
+   ├─ reject      → message.setReject(...)
+   ├─ drop        → return without forwarding/replying
+   ├─ quarantine  → store/enqueue once /quarantine exists; conservative fallback today
+   └─ inspect_raw → call future /check-raw; conservative fallback today
+```
+
+Cloudflare references:
+
+- Service Bindings: https://developers.cloudflare.com/workers/runtime-apis/bindings/service-bindings/
+- HTTP Service Bindings: https://developers.cloudflare.com/workers/runtime-apis/bindings/service-bindings/http/
+- Email Workers Runtime API: https://developers.cloudflare.com/email-routing/email-workers/runtime-api/
+- Spam filtering example: https://developers.cloudflare.com/email-service/examples/email-routing/spam-filtering/
+
+### 1. Deploy this policy Worker
+
+```bash
+npm install
+npm run check
+npm run deploy
+```
+
+The target Worker service name comes from this repository's `wrangler.jsonc`:
+
+```jsonc
+{
+  "name": "edge-friendly-rspamd",
+  "main": "src/index.ts",
+}
+```
+
+### 2. Bind it from the caller Worker
+
+Add the Service Binding to the **caller** Worker, not to this policy Worker.
+
+```jsonc
+{
+  "name": "mail-ingress-worker",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-05-07",
+  "services": [
+    {
+      "binding": "EDGE_RSPAMD",
+      "service": "edge-friendly-rspamd",
+    },
+  ],
+}
+```
+
+Then the caller can use `env.EDGE_RSPAMD.fetch(...)`. When constructing a `Request` manually for an HTTP Service Binding, Cloudflare's docs require a valid fully-qualified URL; the hostname is only used to form the request object, while the Service Binding routes it to the bound Worker.
+
+### 3. Email Worker wrapper example
+
+```ts
+type Env = {
+  EDGE_RSPAMD: { fetch(request: Request): Promise<Response> }
+  FORWARD_TO: string
+}
+
+export default {
+  async email(message: ForwardableEmailMessage, env: Env, ctx: ExecutionContext) {
+    const payload = {
+      recipient: message.to,
+      sender: message.from,
+      senderDomain: domainFromAddress(message.from),
+      rawSize: message.rawSize,
+      subject: message.headers.get('subject') ?? '',
+      messageId: message.headers.get('message-id') ?? '',
+      authResults: message.headers.get('authentication-results') ?? '',
+      headers: selectedHeaders(message.headers),
+      hasAttachments: mayHaveAttachments(message.headers),
+      policy: policyForRecipient(message.to),
+    }
+
+    const response = await env.EDGE_RSPAMD.fetch(
+      new Request('https://edge-friendly-rspamd/check', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(payload),
+      }),
+    )
+
+    if (!response.ok) {
+      message.setReject('mail policy check failed')
+      return
+    }
+
+    const decision = await response.json<{
+      action: string
+      decisionId: string
+      score: number
+      verdict: string
+    }>()
+
+    const auditHeaders = new Headers()
+    auditHeaders.set('X-Edge-Rspamd-Decision', decision.action)
+    auditHeaders.set('X-Edge-Rspamd-Decision-Id', decision.decisionId)
+    auditHeaders.set('X-Edge-Rspamd-Score', String(decision.score))
+    auditHeaders.set('X-Edge-Rspamd-Verdict', decision.verdict)
+
+    switch (decision.action) {
+      case 'accept':
+        await message.forward(env.FORWARD_TO, auditHeaders)
+        return
+      case 'reject':
+        message.setReject(`Rejected by edge-friendly-rspamd: ${decision.verdict}`)
+        return
+      case 'drop':
+        return
+      case 'quarantine':
+      case 'inspect_raw':
+        message.setReject(`Quarantined by policy: ${decision.verdict}`)
+        return
+      default:
+        message.setReject(`Unknown mail policy action: ${decision.action}`)
+        return
+    }
+  },
+}
+
+function domainFromAddress(address: string): string {
+  return address.split('@')[1]?.toLowerCase() ?? ''
+}
+
+function selectedHeaders(headers: Headers): Record<string, string> {
+  const keys = ['from', 'to', 'subject', 'message-id', 'authentication-results', 'content-type']
+  const result: Record<string, string> = {}
+  for (const key of keys) {
+    const value = headers.get(key)
+    if (value) result[key.toLowerCase()] = value
+  }
+  return result
+}
+
+function mayHaveAttachments(headers: Headers): boolean {
+  const contentType = headers.get('content-type') ?? ''
+  const disposition = headers.get('content-disposition') ?? ''
+  return /multipart\/mixed/i.test(contentType) || /attachment/i.test(disposition)
+}
+
+function policyForRecipient(recipient: string) {
+  const normalized = recipient.toLowerCase()
+
+  if (normalized === 'agent@example.com') {
+    return {
+      name: 'agent-command-default',
+      mode: 'command-ingress',
+      allowedRecipients: ['agent@example.com'],
+      trustedDomains: ['github.com', 'notifications.github.com'],
+      rawSizeLimit: 256 * 1024,
+      quarantineScore: -1,
+      rejectScore: 3,
+      requireBodySecret: true,
+    }
+  }
+
+  return {
+    name: 'human-inbox-default',
+    mode: 'human-inbox',
+    allowedRecipients: [normalized],
+    rawSizeLimit: 1024 * 1024,
+    quarantineScore: 4,
+    rejectScore: 7,
+  }
+}
+```
+
+### Action handling guidance
+
+| Action        | Caller behavior                                                                |
+| ------------- | ------------------------------------------------------------------------------ |
+| `accept`      | Forward to the upstream inbox or call the upstream saasmail `email()` handler. |
+| `reject`      | Call `message.setReject(reason)` to return a permanent SMTP error.             |
+| `drop`        | Return without forwarding or replying, avoiding backscatter.                   |
+| `quarantine`  | Roadmap: store raw mail in R2, write D1 metadata, enqueue triage.              |
+| `inspect_raw` | Roadmap: call `/check-raw`; until implemented, treat conservatively.           |
+| `relay`       | Reserved; reject/drop unless a specific relay policy is configured.            |
+| `reply`       | Reserved; keep disabled by default for agent-facing aliases.                   |
+
+For agent-facing aliases, fail closed: if the policy Worker is unavailable, returns an invalid response, or requests an unimplemented `inspect_raw`/`quarantine` path, prefer `reject` or `drop` over forwarding to automation.
+
+### saasmail wrapper shape
+
+If the caller already has an upstream `email()` handler, insert the policy check before invoking it:
+
+```ts
+export default {
+  async fetch(request, env, ctx) {
+    return upstream.fetch(request, env, ctx)
+  },
+
+  async email(message, env, ctx) {
+    const decision = await checkWithEdgeRspamd(message, env)
+
+    if (decision.action === 'accept') {
+      return upstream.email(message, env, ctx)
+    }
+
+    if (decision.action === 'reject') {
+      message.setReject('Rejected by mail policy')
+      return
+    }
+
+    return
+  },
+}
+```
+
+---
+
 ## Current Scope
 
 Implemented:
