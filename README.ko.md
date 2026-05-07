@@ -10,7 +10,6 @@ Edge Friendly Rspamd는 Rspamd 자체를 Cloudflare Worker에 이식하는 프�
 
 관련 링크:
 
-- 설계 초안: https://wiki.illuwa.click/page/00%20Inbox/Cloudflare%20Edge%20Friendly%20Rspamd%20%EC%84%A4%EA%B3%84%20%EC%B4%88%EC%95%88.md
 - Cloudflare spam filtering 예시: https://developers.cloudflare.com/email-service/examples/email-routing/spam-filtering/
 - Hono: https://hono.dev/
 

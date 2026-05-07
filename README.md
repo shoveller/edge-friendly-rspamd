@@ -9,7 +9,6 @@ This repository currently implements only `POST /check`: a cheap metadata-only d
 Links:
 
 - Korean README: [README.ko.md](./README.ko.md)
-- Design seed: https://wiki.illuwa.click/page/00%20Inbox/Cloudflare%20Edge%20Friendly%20Rspamd%20%EC%84%A4%EA%B3%84%20%EC%B4%88%EC%95%88.md
 - Cloudflare spam filtering example: https://developers.cloudflare.com/email-service/examples/email-routing/spam-filtering/
 - Hono: https://hono.dev/
 
